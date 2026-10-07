@@ -5,7 +5,9 @@ Creates a private, local personal knowledge-base repository.
 .DESCRIPTION
 Writes a generic note-organization scaffold, initializes a local Git repository
 on the main branch, configures repository-local author identity, and creates the
-initial commit. The script never configures a remote.
+initial commit. By default, it copies this starter into the generated
+repository so the structure can be recreated elsewhere. The script never
+configures a remote.
 
 .EXAMPLE
 .\New-PersonalKnowledgeBase.ps1 `
@@ -20,6 +22,13 @@ initial commit. The script never configures a remote.
     -KnowledgeBaseName "Personal Notes"
 
 The second example uses an existing global Git author identity.
+
+.EXAMPLE
+.\New-PersonalKnowledgeBase.ps1 `
+    -RepoPath ".\personal-notes" `
+    -SkipSpawnCopy
+
+Creates the repository and spawn instructions without copying the bootstrapper.
 #>
 [CmdletBinding()]
 param(
@@ -32,11 +41,14 @@ param(
 
     [string]$GitUserName,
 
-    [string]$GitUserEmail
+    [string]$GitUserEmail,
+
+    [switch]$SkipSpawnCopy
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
+$ScaffoldVersion = "1.1.0"
 
 function Invoke-Git {
     param(
@@ -170,7 +182,10 @@ reference material, and repeatable processes.
 | `docs/plans/` | Roadmaps, experiments, and implementation plans |
 | `docs/decisions/` | Important choices and their rationale |
 | `docs/topics/` | Durable topic overviews connecting related notes |
+| `docs/spawn/` | Instructions and optional copy of the portable bootstrapper |
+| `logs/` | Append-only knowledge-processing audit logs |
 | `processes/` | Repeatable knowledge-management workflows |
+| `scripts/` | Local repository-maintenance helpers |
 | `templates/` | Starter documents for consistent notes |
 | `assets/images/` | Images and diagrams referenced by notes |
 | `assets/attachments/` | Supporting files that are safe to retain |
@@ -203,8 +218,8 @@ repository, review both current files and Git history for sensitive content.
     "CURRENT-STATE.md" = @'
 # Current State
 
-**Last refreshed:** {{CURRENT_DATE}}  
-**Scope:** Repository contents only  
+**Last refreshed:** {{CURRENT_DATE}}
+**Scope:** Repository contents only
 **Current emphasis:** Establishing the knowledge base
 
 ## In brief
@@ -259,7 +274,9 @@ No initiatives have been documented yet.
 - [Decisions](docs/decisions/README.md)
 - [Topics](docs/topics/README.md)
 - [Capture and curation process](processes/capture-and-curate.md)
+- [Inbox processing log](logs/inbox-processing-log.md)
 - [Research and citation process](processes/research-and-citations.md)
+- [Portable scaffold](docs/spawn/README.md)
 '@
 
     ".gitignore" = @'
@@ -338,6 +355,36 @@ ideas, research, plans, decisions, topic summaries, and repeatable processes.
 - Keep it readable in approximately three to five minutes.
 - Update its `Last refreshed` date whenever its substance changes.
 
+## Inbox processing audit
+
+- Every file removed from `docs/inbox/` must receive one append-only entry in
+  `logs/inbox-processing-log.md` in the same change.
+- This includes moves, merges, archives, deletions, and intentional dismissals.
+- Record the processing timestamp, original inbox file name, action,
+  destination when applicable, and a short sanitized result.
+- Use `scripts/Write-InboxProcessingLog.ps1` when practical.
+- Never remove a log entry. Add a correction entry if an earlier record is
+  inaccurate.
+- Before committing inbox curation, verify that every removed inbox file is
+  represented in the log.
+
+## Portable scaffold
+
+- Treat `docs/spawn/New-PersonalKnowledgeBase.ps1` as the portable bootstrapper
+  when it is present.
+- Review the bootstrapper whenever repository-wide structure, templates,
+  curation processes, audit behavior, safety rules, or Copilot instructions
+  change.
+- Keep generated scaffold content generic. Never copy actual notes, decisions,
+  inbox-processing history, names, private links, internal IDs, absolute user
+  paths, or operational details into it.
+- Keep `docs/spawn/README.md` accurate for the bootstrapper version recorded
+  there.
+- Preserve local-only defaults: no remote configuration, upload, publication,
+  or external sharing.
+- Test bootstrapper changes in explicitly named disposable folders and remove
+  those folders after validation.
+
 ## Knowledge integrity
 
 - Clearly label facts, interpretations, assumptions, hypotheses, and open
@@ -388,9 +435,14 @@ This is the main knowledge area:
 - [`plans/`](plans/) for intended work and experiments
 - [`decisions/`](decisions/) for consequential choices and rationale
 - [`topics/`](topics/) for durable subject overviews and navigation
+- [`spawn/`](spawn/) for the portable repository bootstrapper and instructions
 
 Start with the inbox when classification would slow down capture. During a
 review, move each worthwhile note to its natural home and add useful links.
+
+The spawn folder is maintenance infrastructure rather than knowledge content.
+Keep it generic and free of actual notes, private references, and processing
+history.
 '@
 
     "docs/inbox/README.md" = @'
@@ -408,7 +460,9 @@ During curation:
 3. Move useful content into `ideas`, `research`, `plans`, `decisions`, or
    `topics`.
 4. Add links to related notes.
-5. Refresh `CURRENT-STATE.md` when priorities or understanding change.
+5. Add one entry to `logs/inbox-processing-log.md` for every file removed from
+   this folder.
+6. Refresh `CURRENT-STATE.md` when priorities or understanding change.
 '@
 
     "docs/ideas/README.md" = @'
@@ -508,17 +562,26 @@ Review the inbox periodically:
 5. **Advance:** identify a next step or mark the note as intentionally parked.
 6. **Archive:** move superseded material to `archive/` instead of erasing useful
    history.
-7. **Refresh current state:** update
+7. **Log processing:** for every file removed from `docs/inbox/`, append one
+   entry to the
+   [`inbox processing log`](../logs/inbox-processing-log.md). Record the
+   timestamp, original file name, action, destination, and a short sanitized
+   result. Use
+   [`Write-InboxProcessingLog.ps1`](../scripts/Write-InboxProcessingLog.ps1)
+   when practical.
+8. **Refresh current state:** update
    [`CURRENT-STATE.md`](../CURRENT-STATE.md) when the repository summary,
    decisions, actions, watch items, or navigation change.
-8. **Validate:** check links and scan changed files for sensitive information.
-9. **Commit:** create a meaningful local Git checkpoint.
+9. **Verify:** confirm every removed inbox file has a matching log entry, check
+   links, and scan changed files for sensitive information.
+10. **Commit:** create a meaningful local Git checkpoint.
 
 ## Repository health
 
 Occasionally ask Copilot to:
 
 - curate the inbox;
+- review the inbox processing log;
 - refresh the current-state summary;
 - find broken relative links;
 - identify duplicate or disconnected notes;
@@ -725,6 +788,193 @@ Why is this the best choice given current information?
 - 
 '@
 
+    "logs/README.md" = @'
+# Logs
+
+Repository-maintenance audit logs live here.
+
+- [`inbox-processing-log.md`](inbox-processing-log.md) records every note
+  removed from `docs/inbox/` through curation, merging, archiving, deletion, or
+  dismissal.
+
+Logs are append-only. Correct an inaccurate entry with a new correction entry
+rather than silently rewriting history.
+'@
+
+    "logs/inbox-processing-log.md" = @'
+# Inbox Processing Log
+
+This append-only log records when a file leaves `docs/inbox/`, what happened to
+it, and the useful result. It tracks knowledge-processing activity, not the
+full content of the source note.
+
+## Rules
+
+- Add one row for every file removed from the inbox.
+- Record moves, merges, archives, deletions, and intentional dismissals.
+- Use the original inbox file name.
+- Link or name the destination when one exists.
+- Keep the summary brief and free of sensitive information.
+- Never delete a row. Add a correction row if needed.
+
+## Entries
+
+| Processed at | Inbox file | Action | Destination | Result |
+| --- | --- | --- | --- | --- |
+'@
+
+    "scripts/Write-InboxProcessingLog.ps1" = @'
+<#
+.SYNOPSIS
+Appends one sanitized entry to the inbox processing log.
+
+.EXAMPLE
+.\scripts\Write-InboxProcessingLog.ps1 `
+    -SourceFile "docs\inbox\2026-01-15-example.md" `
+    -Action Moved `
+    -Destination "docs\ideas\2026-01-15-example.md" `
+    -Summary "Promoted the note to an idea and clarified its open questions."
+#>
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$SourceFile,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("Moved", "Merged", "Archived", "Deleted", "Dismissed")]
+    [string]$Action,
+
+    [string]$Destination,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$Summary,
+
+    [string]$Commit,
+
+    [datetime]$ProcessedAt = (Get-Date),
+
+    [string]$LogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "logs\inbox-processing-log.md")
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version 2.0
+
+function ConvertTo-TableText {
+    param(
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    if ($null -eq $Value) {
+        return ""
+    }
+
+    return (($Value -replace "(`r`n|`n|`r)", " ") -replace "\|", "\|").Trim()
+}
+
+$sourceName = Split-Path -Leaf $SourceFile
+if ([string]::IsNullOrWhiteSpace($sourceName)) {
+    throw "SourceFile must contain an inbox file name."
+}
+
+if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
+    throw "Inbox processing log was not found: $LogPath"
+}
+
+$destinationText = if ([string]::IsNullOrWhiteSpace($Destination)) {
+    "-"
+}
+else {
+    "``$(ConvertTo-TableText -Value $Destination)``"
+}
+
+$result = ConvertTo-TableText -Value $Summary
+$commitText = ConvertTo-TableText -Value $Commit
+if (-not [string]::IsNullOrWhiteSpace($commitText)) {
+    $result = "$result Commit ``$commitText``."
+}
+
+$timestamp = $ProcessedAt.ToString("yyyy-MM-ddTHH:mm:ssK")
+$entry = "| $timestamp | ``$(ConvertTo-TableText -Value $sourceName)`` | $Action | $destinationText | $result |"
+
+$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+$existing = [System.IO.File]::ReadAllText($LogPath)
+if (-not $existing.EndsWith("`n")) {
+    $existing += "`n"
+}
+[System.IO.File]::WriteAllText($LogPath, $existing + $entry + "`n", $utf8WithoutBom)
+
+Write-Output "Logged inbox processing for $sourceName"
+'@
+
+    "docs/spawn/README.md" = @'
+# Create another personal knowledge base
+
+**Scaffold version:** {{SCAFFOLD_VERSION}}
+
+This folder contains the instructions for recreating this generic personal
+knowledge-base structure in another location.
+
+## Contents
+
+{{SPAWN_CONTENTS}}
+
+## Requirements
+
+- Windows PowerShell 5.1 or PowerShell 7+
+- Git available on `PATH`
+- An empty or nonexistent destination folder
+- A configured Git author identity, or a name and email supplied as parameters
+
+## Create another repository
+
+When `New-PersonalKnowledgeBase.ps1` is present, copy it to a convenient local
+folder or run it directly from this folder:
+
+```powershell
+.\New-PersonalKnowledgeBase.ps1 `
+    -RepoPath "C:\Notes\another-knowledge-base" `
+    -KnowledgeBaseName "Another Personal Knowledge Base" `
+    -GitUserName "Your Name" `
+    -GitUserEmail "you@example.com"
+```
+
+If Git author identity is already configured globally, omit `GitUserName` and
+`GitUserEmail`.
+
+Use `-SkipSpawnCopy` when the generated repository should contain these
+instructions but not another copy of the bootstrapper.
+
+## What the bootstrapper does
+
+- Creates the note-organization structure
+- Adds templates and maintenance processes
+- Adds Copilot repository instructions
+- Adds the current-state summary and inbox-processing audit
+- Initializes local Git on `main`
+- Creates the initial commit
+- Copies itself here by default
+- Configures no remote and uploads nothing
+
+## After creation
+
+1. Open the generated folder in VS Code.
+2. Read `CURRENT-STATE.md`.
+3. Ask Copilot:
+
+   > Explain how this knowledge base is organized and help me capture my first
+   > note.
+
+## Safety
+
+The bootstrapper refuses to overwrite a non-empty destination. It does not
+configure a remote, publish files, or upload content. Do not add passwords,
+tokens, confidential information, private links, restricted material, or
+unnecessary personal data.
+'@
+
     "assets/README.md" = @'
 # Assets
 
@@ -750,13 +1000,37 @@ replacement when one exists.
 '@
 }
 
+$spawnContents = if ($SkipSpawnCopy) {
+    "The bootstrapper copy was intentionally omitted with ``-SkipSpawnCopy``. Copy a trusted bootstrapper into this folder before following the creation example."
+}
+else {
+    "- [``New-PersonalKnowledgeBase.ps1``](New-PersonalKnowledgeBase.ps1) recreates this scaffold in another empty folder."
+}
+
 $currentDate = Get-Date -Format "yyyy-MM-dd"
 foreach ($relativePath in $files.Keys) {
     $content = $files[$relativePath]
     $content = $content.Replace("{{KNOWLEDGE_BASE_NAME}}", $safeTitle)
     $content = $content.Replace("{{CURRENT_DATE}}", $currentDate)
+    $content = $content.Replace("{{SCAFFOLD_VERSION}}", $ScaffoldVersion)
+    $content = $content.Replace("{{SPAWN_CONTENTS}}", $spawnContents)
     $destination = Join-Path $resolvedRepoPath $relativePath
     Write-Utf8File -Path $destination -Content ($content.TrimStart("`r", "`n") + $(if ($content.Length -gt 0) { "`n" } else { "" }))
+}
+
+if (-not $SkipSpawnCopy) {
+    if ([string]::IsNullOrWhiteSpace($PSCommandPath) -or -not (Test-Path -LiteralPath $PSCommandPath -PathType Leaf)) {
+        throw "The running bootstrapper path could not be resolved for the spawn copy."
+    }
+
+    $spawnScriptPath = Join-Path $resolvedRepoPath "docs\spawn\New-PersonalKnowledgeBase.ps1"
+    Copy-Item -LiteralPath $PSCommandPath -Destination $spawnScriptPath
+
+    $sourceHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    $spawnHash = (Get-FileHash -LiteralPath $spawnScriptPath -Algorithm SHA256).Hash
+    if ($sourceHash -ne $spawnHash) {
+        throw "The copied bootstrapper failed hash verification."
+    }
 }
 
 Invoke-Git -WorkingDirectory $resolvedRepoPath -Arguments @("init")
@@ -789,8 +1063,10 @@ if (@($status).Count -ne 0) {
 Write-Host ""
 Write-Host "Personal knowledge base created successfully." -ForegroundColor Green
 Write-Host "Path: $resolvedRepoPath"
+Write-Host "Scaffold version: $ScaffoldVersion"
 Write-Host "Branch: main"
 Write-Host "Remote: none"
+Write-Host "Spawn copy: $(if ($SkipSpawnCopy) { 'omitted' } else { 'included and hash-verified' })"
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Open the folder in VS Code."
